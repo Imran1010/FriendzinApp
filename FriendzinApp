@@ -1,17 +1,8 @@
 
+
 function Show-LoginForm {
    Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
-
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public class User32 {
-    [DllImport("user32.dll", CharSet = CharSet.Auto)]
-    public static extern IntPtr SendMessage(IntPtr hWnd, int msg, int wParam, string lParam);
-}
-"@
-$EM_SETCUEBANNER = 0x1501
 
 function Get-ImageFromUrl {
     param (
@@ -28,6 +19,18 @@ function Get-ImageFromUrl {
         return $null
     }
 }
+
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class User32 {
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    public static extern IntPtr SendMessage(IntPtr hWnd, int msg, int wParam, string lParam);
+}
+"@
+
+# Constants
+$EM_SETCUEBANNER = 0x1501
 
 # Create the main form
 $formLogin = New-Object System.Windows.Forms.Form
@@ -73,14 +76,16 @@ $usernameBox = New-Object System.Windows.Forms.TextBox
 $usernameBox.Size = New-Object System.Drawing.Size(200, 20)
 $usernameBox.Location = New-Object System.Drawing.Point(50, 160)
 [User32]::SendMessage($usernameBox.Handle, $EM_SETCUEBANNER, 0, "Username")
+$usernameBox.Text = ""
 $controlsPanel.Controls.Add($usernameBox)
 
 # Password TextBox
 $passwordBox = New-Object System.Windows.Forms.TextBox
 $passwordBox.Size = New-Object System.Drawing.Size(200, 20)
 $passwordBox.Location = New-Object System.Drawing.Point(50, 190)
-$passwordBox.UseSystemPasswordChar = $true
 [User32]::SendMessage($passwordBox.Handle, $EM_SETCUEBANNER, 0, "Password")
+#$passwordBox.UseSystemPasswordChar = $true
+$passwordBox.Text = ""
 $controlsPanel.Controls.Add($passwordBox)
 
 # Login Button

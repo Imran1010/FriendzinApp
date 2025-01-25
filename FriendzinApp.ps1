@@ -1,6 +1,16 @@
-function Show-LoginForm {
-   Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+
+$MKDIR = "C:\IHS-Application"
+$ALL = "C:\IHS-Application\IHS-Template.csv"
+if (-not (Test-Path $MKDIR)) {
+New-Item -Path $MKDIR -ItemType Directory 
+}
+$IHSCSV = "UserName,AssignLicenses,RevokeLicenses,AddGroups,RemoveGroups,DLName,UserPrincipalName,Action.ToLower"
+Set-Content -Path $ALL -Value $IHSCSV
+Start-Transcript -Path C:\IHS-Application\IHS-LOGS-PS-MENU.log -Append
+Get-Date -Format "dddd MM/dd/yyyy HH:mm K"
+$maximumfunctioncount = '32768'
 
 function Get-ImageFromUrl {
     param (
@@ -18,7 +28,61 @@ function Get-ImageFromUrl {
     }
 }
 
-Add-Type @"
+function Fetch-GistContent {
+    param (
+        [string]$url
+    )
+    try {
+        $content = Invoke-RestMethod -Uri $url -Method Get
+        return $content
+    } catch {
+        Write-Host "Error fetching content from IHS DataBase: $_" -ForegroundColor Red
+        return $null
+    }
+}
+
+function New-StyledButton {
+    param (
+        [string]$Text,
+        [int]$X,
+        [int]$Y,
+        [int]$Width = 180,
+        [int]$Height = 40
+    )
+    $button = New-Object System.Windows.Forms.Button
+    $button.Location = New-Object System.Drawing.Point($X, $Y)
+    $button.Size = New-Object System.Drawing.Size($Width, $Height)
+    $button.Text = $Text
+    $button.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $button.FlatAppearance.BorderSize = 0
+    $button.BackColor = [System.Drawing.Color]::FromArgb(70, 130, 180)
+    $button.ForeColor = [System.Drawing.Color]::White
+    $button.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+    $button.Cursor = [System.Windows.Forms.Cursors]::Hand
+    $button.Add_MouseEnter({ $this.BackColor = [System.Drawing.Color]::FromArgb(100, 160, 210) })
+    $button.Add_MouseLeave({ $this.BackColor = [System.Drawing.Color]::FromArgb(70, 130, 180) })
+    return $button
+}
+
+function New-StyledForm {
+    param (
+        [string]$Title,
+        [int]$Width,
+        [int]$Height
+    )
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = $Title
+    $form.Size = New-Object System.Drawing.Size($Width, $Height)
+    $form.StartPosition = "CenterScreen"
+    $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+    $form.MaximizeBox = $false
+    $form.MinimizeBox = $false
+    $form.BackColor = [System.Drawing.Color]::White
+    return $form
+}
+
+function Show-LoginForm {
+    Add-Type @"
 using System;
 using System.Runtime.InteropServices;
 public class User32 {
@@ -26,82 +90,67 @@ public class User32 {
     public static extern IntPtr SendMessage(IntPtr hWnd, int msg, int wParam, string lParam);
 }
 "@
+    $EM_SETCUEBANNER = 0x1501
 
-# Constants
-$EM_SETCUEBANNER = 0x1501
+    $formLogin = New-Object System.Windows.Forms.Form
+    $formLogin.Text = "Login Page"
+    $formLogin.Size = New-Object System.Drawing.Size(525, 450)
+    $formLogin.StartPosition = "CenterScreen"
 
-# Create the main form
-$formLogin = New-Object System.Windows.Forms.Form
-$formLogin.Text = "Login Page"
-$formLogin.Size = New-Object System.Drawing.Size(525, 450)
-$formLogin.StartPosition = "CenterScreen"
+    $backgroundPanel = New-Object System.Windows.Forms.Panel
+    $backgroundPanel.Dock = [System.Windows.Forms.DockStyle]::Fill
+    $formLogin.Controls.Add($backgroundPanel)
+    $backgroundImageUrl = "https://github.com/Imran1010/Applogin/blob/main/Untitled.jpg?raw=true"
+    $backgroundImage = Get-ImageFromUrl -Url $backgroundImageUrl
+    if ($backgroundImage) {
+        $backgroundPanel.BackgroundImage = $backgroundImage
+        $backgroundPanel.BackgroundImageLayout = [System.Windows.Forms.ImageLayout]::Stretch
+    }
 
-# Create a panel to hold the background image
-$backgroundPanel = New-Object System.Windows.Forms.Panel
-$backgroundPanel.Dock = [System.Windows.Forms.DockStyle]::Fill
-$formLogin.Controls.Add($backgroundPanel)
+    $controlsPanel = New-Object System.Windows.Forms.Panel
+    $controlsPanel.Size = New-Object System.Drawing.Size(280, 280)
+    $controlsPanel.Location = New-Object System.Drawing.Point(100, 112)  # Center the panel
+    $controlsPanel.BackColor = [System.Drawing.Color]::FromArgb(0, [System.Drawing.Color]::White) 
+    $backgroundPanel.Controls.Add($controlsPanel)
 
-# Set the background image from a URL
-$backgroundImageUrl = "https://github.com/Imran1010/Applogin/blob/main/Untitled.jpg?raw=true"  # Replace with your image URL
-$backgroundImage = Get-ImageFromUrl -Url $backgroundImageUrl
-if ($backgroundImage) {
-    $backgroundPanel.BackgroundImage = $backgroundImage
-    $backgroundPanel.BackgroundImageLayout = [System.Windows.Forms.ImageLayout]::Stretch
-}
+    $profilePicture = New-Object System.Windows.Forms.PictureBox
+    $profilePictureUrl = "https://github.com/Imran1010/Applogin/blob/main/Logo.png?raw=true" 
+    $profileImage = Get-ImageFromUrl -Url $profilePictureUrl
+    if ($profileImage) {
+        $profilePicture.Image = $profileImage
+        $profilePicture.Size = New-Object System.Drawing.Size(160, 160)
+        $profilePicture.Location = New-Object System.Drawing.Point(70, 0)
+        $profilePicture.SizeMode = [System.Windows.Forms.PictureBoxSizeMode]::StretchImage
+        $controlsPanel.Controls.Add($profilePicture)
+    }
 
-# Create a container panel for the controls
-$controlsPanel = New-Object System.Windows.Forms.Panel
-$controlsPanel.Size = New-Object System.Drawing.Size(280, 280)
-$controlsPanel.Location = New-Object System.Drawing.Point(100, 112)  # Center the panel
-$controlsPanel.BackColor = [System.Drawing.Color]::FromArgb(0, [System.Drawing.Color]::White)  # Semi-transparent background
-$backgroundPanel.Controls.Add($controlsPanel)
+    $usernameBox = New-Object System.Windows.Forms.TextBox
+    $usernameBox.Size = New-Object System.Drawing.Size(200, 20)
+    $usernameBox.Location = New-Object System.Drawing.Point(50, 160)
+    [User32]::SendMessage($usernameBox.Handle, $EM_SETCUEBANNER, 0, "Username")
+    $controlsPanel.Controls.Add($usernameBox)
 
-# Add controls to the controls panel
-# Profile Picture
-$profilePicture = New-Object System.Windows.Forms.PictureBox
-$profilePictureUrl = "https://github.com/Imran1010/Applogin/blob/main/Logo.png?raw=true"  # Replace with your profile icon URL
-$profileImage = Get-ImageFromUrl -Url $profilePictureUrl
-if ($profileImage) {
-    $profilePicture.Image = $profileImage
-    $profilePicture.Size = New-Object System.Drawing.Size(160, 160)
-    $profilePicture.Location = New-Object System.Drawing.Point(70,0)
-    $profilePicture.SizeMode = [System.Windows.Forms.PictureBoxSizeMode]::StretchImage
-    $controlsPanel.Controls.Add($profilePicture)
-}
+    $passwordBox = New-Object System.Windows.Forms.TextBox
+    $passwordBox.Size = New-Object System.Drawing.Size(200, 20)
+    $passwordBox.Location = New-Object System.Drawing.Point(50, 190)
+    $passwordBox.UseSystemPasswordChar = $true
+    [User32]::SendMessage($passwordBox.Handle, $EM_SETCUEBANNER, 0, "Password")
+    $controlsPanel.Controls.Add($passwordBox)
 
-# Username TextBox
-$usernameBox = New-Object System.Windows.Forms.TextBox
-$usernameBox.Size = New-Object System.Drawing.Size(200, 20)
-$usernameBox.Location = New-Object System.Drawing.Point(50, 160)
-[User32]::SendMessage($usernameBox.Handle, $EM_SETCUEBANNER, 0, "Username")
-$usernameBox.Text = ""
-$controlsPanel.Controls.Add($usernameBox)
+    $loginButton = New-Object System.Windows.Forms.Button
+    $loginButton.Text = "Login"
+    $loginButton.Size = New-Object System.Drawing.Size(200, 30)
+    $loginButton.Location = New-Object System.Drawing.Point(50, 220)
+    $loginButton.BackColor = [System.Drawing.Color]::Gray
+    $loginButton.ForeColor = [System.Drawing.Color]::White
+    $loginButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $loginButton.FlatAppearance.BorderSize = 0
+    $controlsPanel.Controls.Add($loginButton)
 
-# Password TextBox
-$passwordBox = New-Object System.Windows.Forms.TextBox
-$passwordBox.Size = New-Object System.Drawing.Size(200, 20)
-$passwordBox.Location = New-Object System.Drawing.Point(50, 190)
-[User32]::SendMessage($passwordBox.Handle, $EM_SETCUEBANNER, 0, "Password")
-#$passwordBox.UseSystemPasswordChar = $true
-$passwordBox.Text = ""
-$controlsPanel.Controls.Add($passwordBox)
-
-# Login Button
-$loginButton = New-Object System.Windows.Forms.Button
-$loginButton.Text = "Login"
-$loginButton.Size = New-Object System.Drawing.Size(200, 30)
-$loginButton.Location = New-Object System.Drawing.Point(50, 220)
-$loginButton.BackColor = [System.Drawing.Color]::Gray
-$loginButton.ForeColor = [System.Drawing.Color]::White
-$loginButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-$loginButton.FlatAppearance.BorderSize = 0
-$controlsPanel.Controls.Add($loginButton)
-
-# Event handler for the Login button click
-$loginButton.Add_Click({
-  $url = "https://raw.githubusercontent.com/Imran1010/Applogin/refs/heads/main/README.md"
-    $gistContent = Fetch-GistContent -url $url
-if ($null -ne $gistContent) {
+    $loginButton.Add_Click({
+        $url = "https://raw.githubusercontent.com/Imran1010/Applogin/refs/heads/main/README.md"
+        $gistContent = Fetch-GistContent -url $url
+        if ($null -ne $gistContent) {
             $lines = $gistContent -split "`r`n" | ForEach-Object { $_.Trim() }
             $storedUsername = ""
             $storedPassword = ""
@@ -116,711 +165,198 @@ if ($null -ne $gistContent) {
             $username = $usernameBox.Text.Trim()
             $password = $passwordBox.Text.Trim()
             if ($username -eq $storedUsername -and $password -eq $storedPassword) {
-               $formLogin.Hide()  # Hide the login form
-                Show-MainForm  # Open Main Application Form
-                $formLogin.Close() 
+                $formLogin.Hide()  
+                Show-ModuleStatusForm
+                $formLogin.Close()
             } else {
                 [System.Windows.Forms.MessageBox]::Show("Invalid username or password.", "Error", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
             }
         } else {
             [System.Windows.Forms.MessageBox]::Show("Failed to fetch credentials from IHS Database Contact to Friendzin.", "Error", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
         }
-
-})
-
-
-# Show the form
-$formLogin.Add_Shown({ $formLogin.Activate() })
-[void]$formLogin.ShowDialog()
-}
-
-function Show-MainForm {
-
-function Get-ImageFromUrl1 {
-    param (
-        [string]$Url
-    )
-    try {
-        $webClient = New-Object System.Net.WebClient
-        $imageStream = $webClient.OpenRead($Url)
-        $image = [System.Drawing.Image]::FromStream($imageStream)
-        $imageStream.Close()
-        return $image
-    } catch {
-        Write-Error "Failed to load image from $Url. $_"
-        return $null
-    }
-}
-
-$form = New-Object System.Windows.Forms.Form
-$form.Text = "Ibrahim UPL Scripts = Advanced IHS Menu"
-$form.AutoSize = $True
-#$form.BackColor = [System.Drawing.Color]::LightBlue
-$form.StartPosition = "CenterScreen"
-
-$backgroundPanel1 = New-Object System.Windows.Forms.Panel
-$backgroundPanel1.Dock = [System.Windows.Forms.DockStyle]::Fill
-$formLogin.Controls.Add($backgroundPanel1)
-
-$backgroundImageUrl1 = "https://github.com/Imran1010/Applogin/blob/main/Untitled.jpg?raw=true"  # Replace with your image URL
-$backgroundImage1 = Get-ImageFromUrl1 -Url $backgroundImageUrl1
-if ($backgroundImage1) {
-    $backgroundPanel1.BackgroundImage = $backgroundImage1
-    $backgroundPanel1.BackgroundImageLayout = [System.Windows.Forms.ImageLayout]::Stretch
-}
-
-$controlsPanel = New-Object System.Windows.Forms.Panel
-$controlsPanel.Size = New-Object System.Drawing.Size(300, 210)
-$controlsPanel.Location = New-Object System.Drawing.Point(112, 75)  # Center the panel
-$controlsPanel.BackColor = [System.Drawing.Color]::FromArgb(80, [System.Drawing.Color]::White)  # Semi-transparent background
-$backgroundPanel1.Controls.Add($controlsPanel)
-
-$labelIHS = New-Object System.Windows.Forms.Label
-$labelIHS.Text = "IHS UPL Script : AD Menu"
-$labelIHS.AutoSize = $False
-$labelIHS.Size = New-Object System.Drawing.Size(350, 30) # Set the desired width and height
-$labelIHS.Location = New-Object System.Drawing.Point(6, 10)
-$labelIHS.Font = New-Object System.Drawing.Font("Cambria",14,[System.Drawing.FontStyle]::Bold)
-$labelIHS.ForeColor = "Black"
-
-$helpPanel = New-Object System.Windows.Forms.Panel
-$helpPanel.Size = New-Object System.Drawing.Size(200, 330)
-$helpPanel.Location = New-Object System.Drawing.Point(480, 10)
-$helpPanel.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
-$helpPanel.BackColor = [System.Drawing.Color]::FromArgb(240, 240, 240)
-
-# Add help text label
-$helpLabel = New-Object System.Windows.Forms.Label
-$helpLabel.Size = New-Object System.Drawing.Size(200, 300)
-$helpLabel.Location = New-Object System.Drawing.Point(10, 10)
-$helpLabel.Font = New-Object System.Drawing.Font("Calibri", 10)
-$helpLabel.Text = "Hover over any button to see its description here..."
-$helpPanel.Controls.Add($helpLabel)
-
-    $logoutButton = New-Object System.Windows.Forms.Button
-    $logoutButton.Text = "Logout"
-    $logoutButton.Location = New-Object System.Drawing.Point(380, 10)
-    $logoutButton.ForeColor = "White"
-    $logoutButton.BackColor = "Gray"
-    $logoutButton.Add_Click({
-                
-                $form.Hide()  
-                Show-LoginForm  
-                $form.Close()
     })
-
-    $logoutButton.Add_MouseEnter({ $logoutButton.BackColor = "DarkRed" })
-    $logoutButton.Add_MouseLeave({ $logoutButton.BackColor = "Gray" })
-
-
-$script1Button = New-Object System.Windows.Forms.Button
-$script1Button.Text = "User Password Reset"
-$script1Button.AutoSize = $True
-$script1Button.Location = New-Object System.Drawing.Point(10, 40)
-$script1Button.ForeColor = "White"
-$script1Button.BackColor = "Green"
-$script1Button.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
-$script1Button.Add_Click({
-    IHS-USPWRST-MLUP
-})
-$script1Button.Add_MouseEnter({
-    $script1Button.BackColor = "DarkRed"
-    $helpLabel.Text = "User Password Reset`n`nThis tool allows administrators to reset user passwords in Active Directory.`n`nFeatures:`n- Secure password generation`n- Immediate password reset`n- Forces password change at next logon`n- Logs password reset actions"
-
-})
-$script1Button.Add_MouseLeave({
-    $script1Button.BackColor = "Green"
-    $helpLabel.Text = "Hover over any button to see its description here..."
-    
-})
-
-$EmailUPIHS = New-Object System.Windows.Forms.Button
-$EmailUPIHS.Text = "User Email Update"
-$EmailUPIHS.AutoSize = $True
-$EmailUPIHS.Location = New-Object System.Drawing.Point(270, 40)
-$EmailUPIHS.ForeColor = "White"
-$EmailUPIHS.BackColor = "Green"
-$EmailUPIHS.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
-$EmailUPIHS.Add_Click({
-    IHS-USEMUP
-})
-$EmailUPIHS.Add_MouseEnter({
-    $EmailUPIHS.BackColor = "DarkRed"
-     $helpLabel.Text = "User Email Update`n`nUpdates user email addresses in Active Directory.`n`nFeatures:`n- Batch email updates`n- Validation of email format`n- Updates primary and proxy addresses`n- Syncs with Exchange"
-
-})
-$EmailUPIHS.Add_MouseLeave({
-    $EmailUPIHS.BackColor = "Green"
-    $helpLabel.Text = "Hover over any button to see its description here..."
-})
-
-
-$CMTIHS = New-Object System.Windows.Forms.Button
-$CMTIHS.Text = "Comment Reset"
-$CMTIHS.AutoSize = $True
-$CMTIHS.Location = New-Object System.Drawing.Point(270, 70)
-$CMTIHS.ForeColor = "White"
-$CMTIHS.BackColor = "Green"
-$CMTIHS.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
-$CMTIHS.Add_Click({
-    IHS-USCMTRST
-})
-$CMTIHS.Add_MouseEnter({
-    $CMTIHS.BackColor = "DarkRed"
-    $helpLabel.Text = "Comment Reset`n`nManages and resets user comment fields in Active Directory.`n`nFeatures:`n- Clear existing comments`n- Add new standardized comments`n- Bulk comment updates`n- Comment history tracking"
-
-})
-$CMTIHS.Add_MouseLeave({
-    $CMTIHS.BackColor = "Green"
-    $helpLabel.Text = "Hover over any button to see its description here..."
-})
-
-
-$GPLFTIHS = New-Object System.Windows.Forms.Button
-$GPLFTIHS.Text = "Group Lifting After Mapping"
-$GPLFTIHS.AutoSize = $True
-$GPLFTIHS.Location = New-Object System.Drawing.Point(10, 70)
-$GPLFTIHS.ForeColor = "White"
-$GPLFTIHS.BackColor = "Green"
-$GPLFTIHS.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
-$GPLFTIHS.Add_Click({
-    IHS-GRPLFT
-})
-$GPLFTIHS.Add_MouseEnter({
-    $GPLFTIHS.BackColor = "DarkRed"
-$helpLabel.Text = "Group Lifting`n`nPurpose: Manages automatic group migration from OLD UGDN to NEW UGDN in Active Directory.`nFeatures :- Automatically detects all groups from OLD UGDN `n- Creates corresponding groups in NEW UGDN `n- Validates successful migration `n3. Transfers all group memberships `nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
-
-
-})
-$GPLFTIHS.Add_MouseLeave({
-    $GPLFTIHS.BackColor = "Green"
-    $helpLabel.Text = "Hover over any button to see its description here..."
-})
-
-
-$script2Button = New-Object System.Windows.Forms.Button
-$script2Button.Text = "AD User Dump IHS Report "
-$script2Button.AutoSize = $True
-$script2Button.Location = New-Object System.Drawing.Point(10, 100)
-$script2Button.ForeColor = "White"
-$script2Button.BackColor = "Green"
-$script2Button.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
-$script2Button.Add_Click({
-$date = Get-Date -Format "yyyyMMdd"
-$IHSEXPATH = 'c:\ADUserexport -$date .csv’
-    IHS-ADEXP-PT -ExportPath $IHSEXPATH
-})
-$script2Button.Add_MouseEnter({
-    $script2Button.BackColor = "DarkRed"
-    $helpLabel.Text = "AD User Dump IHS Report`n`nPurpose: Export All user in Active Directory With UPL Attributes.`nFeatures :- Automatically detects all Members from AD`n- Export with in 15 min in one click`n`nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
-
-})
-$script2Button.Add_MouseLeave({
-    $script2Button.BackColor = "Green"
-    $helpLabel.Text = "Hover over any button to see its description here..."
-})
-
-
-$script3Button = New-Object System.Windows.Forms.Button
-$script3Button.Text = "AD Export OU BASED"
-$script3Button.AutoSize = $True
-$script3Button.Location = New-Object System.Drawing.Point(270, 100)
-$script3Button.ForeColor = "White"
-$script3Button.BackColor = "Green"
-$script3Button.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
-$script3Button.Add_Click({
-    IHS-ADOUEXP-PT
-})
-$script3Button.Add_MouseEnter({
-    $script3Button.BackColor = "DarkRed"
-    $helpLabel.Text = "AD OU Users detail export`n`nPurpose: Export user based on OU ,Its will export users from in Active Directory With UPL Attributes.`nFeatures :- Automatically detects OU & export Users `n- Export Member detail based on OU`n`nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
-
-
-})
-$script3Button.Add_MouseLeave({
-    $script3Button.BackColor = "Green"
-    $helpLabel.Text = "Hover over any button to see its description here..."
-})
-
-
-
-$script4Button = New-Object System.Windows.Forms.Button
-$script4Button.Text = "AD Export as List based"
-$script4Button.AutoSize = $True
-$script4Button.Location = New-Object System.Drawing.Point(10, 130)
-$script4Button.ForeColor = "White"
-$script4Button.BackColor = "Green"
-$script4Button.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
-$script4Button.Add_Click({
-    IHSADLISTTY
-})
-$script4Button.Add_MouseEnter({
-    $script4Button.BackColor = "DarkRed"
-    $helpLabel.Text = "AD user detail Based on user list`n`nPurpose: Export user based on template fill the UGDN in template its will export users from in Active Directory With UPL Attributes.`nFeatures :- Automatically detects Users from Template Members `n- Export Member detail based on users List`n`nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
-
-})
-$script4Button.Add_MouseLeave({
-    $script4Button.BackColor = "Green"
-    $helpLabel.Text = "Hover over any button to see its description here..."
-})
-
-
-$script5Button = New-Object System.Windows.Forms.Button
-$script5Button.Text = "Modules Installer"
-$script5Button.AutoSize = $True
-$script5Button.Location = New-Object System.Drawing.Point(10, 160)
-$script5Button.ForeColor = "White"
-$script5Button.BackColor = "Green"
-$script5Button.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
-$script5Button.Add_Click({
-    IHS-MDINT
-    
-})
-$script5Button.Add_MouseEnter({
-    $script5Button.BackColor = "DarkRed"
-        $helpLabel.Text = "One Click Module Install`n`nPurpose: We can Install Module on One Click`nFeatures :- RSAT Windows 10 & above`n- `n Azure AD Module `nExchange Online Module `nMS Graph Module  `nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
-
-})
-$script5Button.Add_MouseLeave({
-    $script5Button.BackColor = "Green"
-    $helpLabel.Text = "Hover over any button to see its description here..."
-})
-
-
-$IHSGRPEXP = New-Object System.Windows.Forms.Button
-$IHSGRPEXP.Text = "Group Users Export"
-$IHSGRPEXP.AutoSize = $True
-$IHSGRPEXP.Location = New-Object System.Drawing.Point(270, 130)
-$IHSGRPEXP.ForeColor = "White"
-$IHSGRPEXP.BackColor = "Green"
-$IHSGRPEXP.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
-$IHSGRPEXP.Add_Click({
-
-    IHS-ADGRPEXP-PT
-    
-})
-$IHSGRPEXP.Add_MouseEnter({
-    $IHSGRPEXP.BackColor = "DarkRed"
-            $helpLabel.Text = "Groups User Export`n`nPurpose: Export user based on Group Name from in Active Directory .`nFeatures :- Automatically detects Users from Groups Members`n`nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
-
-})
-$IHSGRPEXP.Add_MouseLeave({
-    $IHSGRPEXP.BackColor = "Green"
-    $helpLabel.Text = "Hover over any button to see its description here..."
-})
-
-
-$IHSGRPTSK = New-Object System.Windows.Forms.Button
-$IHSGRPTSK.Text = "Multiple Group Task"
-$IHSGRPTSK.AutoSize = $True
-$IHSGRPTSK.Location = New-Object System.Drawing.Point(270, 160)
-$IHSGRPTSK.ForeColor = "White"
-$IHSGRPTSK.BackColor = "Green"
-$IHSGRPTSK.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
-$IHSGRPTSK.Add_Click({
-
-    IHS-MLTGRP
-    
-})
-$IHSGRPTSK.Add_MouseEnter({
-    $IHSGRPTSK.BackColor = "DarkRed"
-    $helpLabel.Text = "Groups User Export`n`nPurpose: We can Add & remove group in bulk format using template.`nFeatures :- Fill the template based on Groups Members`n`nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
-
-    
-
-})
-$IHSGRPTSK.Add_MouseLeave({
-    $IHSGRPTSK.BackColor = "Green"
-    $helpLabel.Text = "Hover over any button to see its description here..."
-})
-
-
-
-
-
-$M365IHS = New-Object System.Windows.Forms.Label
-$M365IHS.Text = "IHS UPL Script : M365 Menu"
-$M365IHS.AutoSize = $False
-$M365IHS.Size = New-Object System.Drawing.Size(350, 30) # Set the desired width and height
-$M365IHS.Location = New-Object System.Drawing.Point(6, 200)
-$M365IHS.Font = New-Object System.Drawing.Font("Cambria",14,[System.Drawing.FontStyle]::Bold)
-$M365IHS.ForeColor = "Black"
-
-
-$M365IHSIMID = New-Object System.Windows.Forms.Button
-$M365IHSIMID.Text = "Show Immutable ID"
-$M365IHSIMID.AutoSize = $True
-$M365IHSIMID.Location = New-Object System.Drawing.Point(10, 230)
-$M365IHSIMID.ForeColor = "White"
-$M365IHSIMID.BackColor = "Green"
-$M365IHSIMID.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
-$M365IHSIMID.Add_Click({
-[System.Windows.Forms.MessageBox]::Show("Prerequest Wait For 15 to check Module", "Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-
-
-function Check-MSGPModuleI {
-    if (-not (Get-InstalledModule Microsoft.Graph)) {
-        Write-Host "MIcrosoft Graph module is not installed. Installing it now..."
-             [System.Windows.Forms.MessageBox]::Show("MIcrosoft Graph module is not installed", "Installing it now...", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-
-     Install-Module Microsoft.Graph -AllowClobber -Force 
-
-     [System.Windows.Forms.MessageBox]::Show("MIcrosoft Graph module is not installed", "Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-
-    } else {
-        Write-Host "Microsoft Graph module is already installed."
-        Connect-MgGraph
-
-      [System.Windows.Forms.MessageBox]::Show("Microsoft Graph Connected", "Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-
-    }
+    $formLogin.Add_Shown({ $formLogin.Activate() })
+    [void]$formLogin.ShowDialog()
 }
 
-    Check-MSGPModuleI
-    IHD-USSHIMUT
-})
-$M365IHSIMID.Add_MouseEnter({
-    $M365IHSIMID.BackColor = "DarkRed"
-        $helpLabel.Text = "One Click Immutable ID`n`nPurpose: Just Need UGDN one Click Immutable ID Copy`nFeatures :- Auto Copy just put UGDN & Enter`n Make sure Connect with VPN for UGDN Detail trance `n`nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
+function Show-ModuleStatusForm {
+    $IHSFMMD = New-StyledForm -Title "Module Check and Connect" -Width 600 -Height 200
+    $IHSFMMD.BackColor = [System.Drawing.Color]::White
+    $IHSFMMD.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
 
-})
-$M365IHSIMID.Add_MouseLeave({
-    $M365IHSIMID.BackColor = "Green"
-    $helpLabel.Text = "Hover over any button to see its description here..."
-})
+    $mainPanel = New-Object System.Windows.Forms.TableLayoutPanel
+    $mainPanel.Dock = "Fill"
+    $mainPanel.Padding = New-Object System.Windows.Forms.Padding(10, 10, 10, 10)
+    $mainPanel.ColumnCount = 4
+    $mainPanel.RowCount = 5
+    $mainPanel.BackColor = [System.Drawing.Color]::White
+    $mainPanel.CellBorderStyle = [System.Windows.Forms.TableLayoutPanelCellBorderStyle]::Single
 
-$IHSUSBDLICSTATUS = New-Object System.Windows.Forms.Button
-$IHSUSBDLICSTATUS.Text = "User based License status"
-$IHSUSBDLICSTATUS.AutoSize = $True
-$IHSUSBDLICSTATUS.Location = New-Object System.Drawing.Point(10, 260)
-$IHSUSBDLICSTATUS.ForeColor = "White"
-$IHSUSBDLICSTATUS.BackColor = "Green"
-$IHSUSBDLICSTATUS.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
-$IHSUSBDLICSTATUS.Add_Click({
-[System.Windows.Forms.MessageBox]::Show("Prerequest Wait For 15 to check Module", "Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+    $mainPanel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 22)))
+    $mainPanel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 25)))
+    $mainPanel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 30)))
+    $mainPanel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 20)))
 
-
-function Check-MSGPModuleI {
-    if (-not (Get-InstalledModule Microsoft.Graph)) {
-        Write-Host "MIcrosoft Graph module is not installed. Installing it now..."
-             [System.Windows.Forms.MessageBox]::Show("MIcrosoft Graph module is not installed", "Installing it now...", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-
-     Install-Module Microsoft.Graph -AllowClobber -Force 
-
-     [System.Windows.Forms.MessageBox]::Show("MIcrosoft Graph module is not installed", "Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-
-    } else {
-        Write-Host "Microsoft Graph module is already installed."
-        Connect-MgGraph
-
-      [System.Windows.Forms.MessageBox]::Show("Microsoft Graph Connected", "Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-
+    0..4 | ForEach-Object {
+        $mainPanel.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 20)))
     }
+
+    $headerStyle = @{
+        Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+        BackColor = [System.Drawing.Color]::FromArgb(240, 240, 240)
+        ForeColor = [System.Drawing.Color]::FromArgb(60, 60, 60)
+    }
+
+    $headers = @("Service", "Module Status", "Connection Status", "Action")
+    0..3 | ForEach-Object {
+        $header = New-Object System.Windows.Forms.Label
+        $header.Text = $headers[$_]
+        $header.Font = $headerStyle.Font
+        $header.BackColor = $headerStyle.BackColor
+        $header.ForeColor = $headerStyle.ForeColor
+        $header.Dock = "Fill"
+        $header.TextAlign = "MiddleCenter"
+        $mainPanel.Controls.Add($header, $_, 0)
+    }
+
+    $services = @{
+        "Azure AD" = @{
+            ModuleName = "AzureAD"
+            ConnectCmd = { Connect-AzureAD -ShowBanner:$false }
+        }
+        "Exchange Online" = @{
+            ModuleName = "ExchangeOnlineManagement"
+            ConnectCmd = { Connect-ExchangeOnline -ShowBanner:$false }
+        }
+        "Microsoft Graph" = @{
+            ModuleName = "Microsoft.Graph"
+            ConnectCmd = { Connect-MgGraph -ShowBanner:$false }
+        }
+    }
+
+    $labelStyle = @{
+        Font = New-Object System.Drawing.Font("Segoe UI", 9.5)
+        BackColor = [System.Drawing.Color]::White
+        TextAlign = "MiddleCenter"
+        Dock = "Fill"
+        Margin = New-Object System.Windows.Forms.Padding(3, 3, 3, 3)
+    }
+
+    $row = 1
+    foreach ($service in $services.Keys) {
+        $serviceLabel = New-Object System.Windows.Forms.Label
+        $serviceLabel.Text = $service
+        $serviceLabel.Font = $labelStyle.Font
+        $serviceLabel.BackColor = $labelStyle.BackColor
+        $serviceLabel.TextAlign = $labelStyle.TextAlign
+        $serviceLabel.Dock = $labelStyle.Dock
+        $serviceLabel.Margin = $labelStyle.Margin
+        $mainPanel.Controls.Add($serviceLabel, 0, $row)
+
+        $moduleStatus = New-Object System.Windows.Forms.Label
+        $moduleStatus.Font = $labelStyle.Font
+        $moduleStatus.BackColor = $labelStyle.BackColor
+        $moduleStatus.TextAlign = $labelStyle.TextAlign
+        $moduleStatus.Dock = $labelStyle.Dock
+        $moduleStatus.Margin = $labelStyle.Margin
+        if (Get-Module -ListAvailable $services[$service].ModuleName) {
+            $moduleStatus.Text = "✓ Installed"
+            $moduleStatus.ForeColor = [System.Drawing.Color]::Green
+        } else {
+            $moduleStatus.Text = "✗ Not Installed"
+            $moduleStatus.ForeColor = [System.Drawing.Color]::Red
+        }
+        $mainPanel.Controls.Add($moduleStatus, 1, $row)
+
+        $connectionStatus = New-Object System.Windows.Forms.Label
+        $connectionStatus.Text = "Not Connected"
+        $connectionStatus.Font = $labelStyle.Font
+        $connectionStatus.BackColor = $labelStyle.BackColor
+        $connectionStatus.TextAlign = $labelStyle.TextAlign
+        $connectionStatus.Dock = $labelStyle.Dock
+        $connectionStatus.Margin = $labelStyle.Margin
+        $connectionStatus.ForeColor = [System.Drawing.Color]::Red
+        $mainPanel.Controls.Add($connectionStatus, 2, $row)
+
+        $connectButton = New-Object System.Windows.Forms.Button
+        $connectButton.Text = "Connect"
+        $connectButton.Font = $labelStyle.Font
+        $connectButton.Dock = "Fill"
+        $connectButton.Margin = New-Object System.Windows.Forms.Padding(10, 5, 10, 5)
+        $connectButton.BackColor = [System.Drawing.Color]::FromArgb(240, 240, 240)
+        $connectButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+        $connectButton.Tag = @{
+            Service = $service
+            StatusLabel = $connectionStatus
+        }
+
+        $connectButton.Add_Click({
+            $serviceInfo = $this.Tag
+            $service = $serviceInfo.Service
+            $status = $serviceInfo.StatusLabel
+
+            $this.Enabled = $false
+            $status.Text = "⟳ Connecting..."
+            $status.ForeColor = [System.Drawing.Color]::Blue
+
+            Start-Job -Name "Connect_$service" -ScriptBlock {
+                param($serviceName, $moduleData)
+                Import-Module $moduleData.ModuleName -Force
+                & $moduleData.ConnectCmd
+            } -ArgumentList $service, $services[$service]
+        })
+
+        $mainPanel.Controls.Add($connectButton, 3, $row)
+        $row++
+    }
+
+    $nextButton = New-StyledButton -Text "Next" -X 400 -Y 150 -Width 180 -Height 40
+    $nextButton.Add_Click({
+        $IHSFMMD.Hide()
+        Show-MainForm
+        $IHSFMMD.Close()
+    })
+    $mainPanel.Controls.Add($nextButton, 2, 4)
+
+    $loginButton = New-StyledButton -Text "Login" -X 200 -Y 150 -Width 180 -Height 40
+    $loginButton.Add_Click({
+        $IHSFMMD.Hide()
+        Show-LoginForm
+        $IHSFMMD.Close()
+    })
+    $mainPanel.Controls.Add($loginButton, 0, 4)
+
+    $timer = New-Object System.Windows.Forms.Timer
+    $timer.Interval = 500
+    $timer.Add_Tick({
+        Get-Job | Where-Object { $_.Name -like "Connect_*" } | ForEach-Object {
+            $serviceName = $_.Name -replace "Connect_"
+            $row = [array]::IndexOf(($services.Keys), $serviceName) + 1
+            $button = $mainPanel.GetControlFromPosition(3, $row)
+            $status = $mainPanel.GetControlFromPosition(2, $row)
+
+            if ($_.State -eq "Completed") {
+                $status.Text = "✓ Connected"
+                $status.ForeColor = [System.Drawing.Color]::Green
+                $button.Text = "Connected"
+                $button.BackColor = [System.Drawing.Color]::FromArgb(225, 240, 225)
+                Remove-Job $_
+            }
+            elseif ($_.State -eq "Failed") {
+                $error = Receive-Job $_
+                $status.Text = "✗ Failed"
+                $status.ForeColor = [System.Drawing.Color]::Red
+                $button.Text = "Connect"
+                $button.Enabled = $true
+                Remove-Job $_
+                [System.Windows.Forms.MessageBox]::Show($error, "Connection Error", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+            }
+        }
+    })
+    $timer.Start()
+    $IHSFMMD.Controls.Add($mainPanel)
+    [void]$IHSFMMD.ShowDialog()
 }
-
-    Check-MSGPModuleI
-    IHS-USBDLICSTS
- [System.Windows.Forms.MessageBox]::Show("License details exported to $IHSUSOULICSTS", "Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-
-
-})
-$IHSUSBDLICSTATUS.Add_MouseEnter({
-    $IHSUSBDLICSTATUS.BackColor = "DarkRed"
-        $helpLabel.Text = "User Licenses detail based on Users`n`nPurpose: Fill the template based on User we get the licenses Detail`nFeatures :- One click licenses detail Exported to App Folder`n`nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
-
-})
-$IHSUSBDLICSTATUS.Add_MouseLeave({
-    $IHSUSBDLICSTATUS.BackColor = "Green"
-    $helpLabel.Text = "Hover over any button to see its description here..."
-})
-
-
-$IHSM365LC = New-Object System.Windows.Forms.Button
-$IHSM365LC.Text = "IHS License Menu"
-$IHSM365LC.AutoSize = $True
-$IHSM365LC.Location = New-Object System.Drawing.Point(270, 230)
-$IHSM365LC.ForeColor = "White"
-$IHSM365LC.BackColor = "Green"
-$IHSM365LC.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
-$IHSM365LC.Add_Click({
-
-[System.Windows.Forms.MessageBox]::Show("Prerequest Wait For 15 to check Module", "Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-
-
-function Check-MSGPModule {
-    if (-not (Get-InstalledModule Microsoft.Graph)) {
-        Write-Host "MIcrosoft Graph module is not installed. Installing it now..."
-     Install-Module Microsoft.Graph -AllowClobber -Force 
-
-     [System.Windows.Forms.MessageBox]::Show("Microsoft Graph Installed", "Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-
-    } else {
-        Write-Host "Microsoft Graph module is already installed."
-        Connect-MgGraph
-
-      [System.Windows.Forms.MessageBox]::Show("Microsoft Graph Already Installed & Connected", "Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-
-    }
-}
-
-Check-MSGPModule
-IHSM365LCMU
-
-
-})
-$IHSM365LC.Add_MouseEnter({
-    $IHSM365LC.BackColor = "DarkRed"
-        $helpLabel.Text = "License assigned based on UGDN`n`nPurpose: We check UGDN licenses assigned & revoked easly but possible in Entra Network`nFeatures :- Chcek & assigned & Revoke licenses based on UGDN`n`nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
-
-})
-$IHSM365LC.Add_MouseLeave({
-    $IHSM365LC.BackColor = "Green"
-    $helpLabel.Text = "Hover over any button to see its description here..."
-})
-
-
-$IHSBLKLIC = New-Object System.Windows.Forms.Button
-$IHSBLKLIC.Text = "IHS Bulk License Task"
-$IHSBLKLIC.AutoSize = $True
-$IHSBLKLIC.Location = New-Object System.Drawing.Point(270, 260)
-$IHSBLKLIC.ForeColor = "White"
-$IHSBLKLIC.BackColor = "Green"
-$IHSBLKLIC.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
-$IHSBLKLIC.Add_Click({
-
-[System.Windows.Forms.MessageBox]::Show("Prerequest Wait For 15 to check Module", "Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-
-
-function Check-MSGPModule {
-    if (-not (Get-InstalledModule Microsoft.Graph)) {
-        Write-Host "MIcrosoft Graph module is not installed. Installing it now..."
-     Install-Module Microsoft.Graph -AllowClobber -Force 
-[System.Windows.Forms.MessageBox]::Show("Microsoft Graph Installed", "Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-
-    } else {
-        Write-Host "Microsoft Graph module is already installed."
-        Connect-MgGraph
-
-      [System.Windows.Forms.MessageBox]::Show("Microsoft Graph Already Installed & Connected", "Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-
-    }
-}
-
-Check-MSGPModule
-IHS-BLKLICTASK
-[System.Windows.Forms.MessageBox]::Show("We have Completed the licenses Task", "Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-
-
-})
-$IHSBLKLIC.Add_MouseEnter({
-    $IHSBLKLIC.BackColor = "DarkRed"
-        $helpLabel.Text = "Licenses assign Task in Bulk`n`nPurpose: We can assigned licenes in bulk using template on app folder.`nFeatures :- We can assign & Revoke license in Bulk Format `n`nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
-
-})
-$IHSBLKLIC.Add_MouseLeave({
-    $IHSBLKLIC.BackColor = "Green"
-    $helpLabel.Text = "Hover over any button to see its description here..."
-})
-
-
-$IHSUSBDFWDSTATUS = New-Object System.Windows.Forms.Button
-$IHSUSBDFWDSTATUS.Text = "Mail Forwarding Report"
-$IHSUSBDFWDSTATUS.AutoSize = $True
-$IHSUSBDFWDSTATUS.Location = New-Object System.Drawing.Point(10, 290)
-$IHSUSBDFWDSTATUS.ForeColor = "White"
-$IHSUSBDFWDSTATUS.BackColor = "Green"
-$IHSUSBDFWDSTATUS.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
-$IHSUSBDFWDSTATUS.Add_Click({
-[System.Windows.Forms.MessageBox]::Show("Prerequest Wait For 15 to check Module", "Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-
-function Check-MSGPModuleI {
-   function Connect-ExchangeOnline {
-    param (
-        [string]$UserPrincipalName
-    )
-    
-    # Prompt for credentials if UserPrincipalName is not specified
-    if (-not $UserPrincipalName) {
-        $credentials = Get-Credential -Message "Enter your Exchange Online credentials"
-    }
-    else {
-        # Use stored credentials if available
-        $credentials = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $UserPrincipalName, (Read-Host -AsSecureString "Enter Password")
-    }
-
-    # Import ExchangeOnlineManagement module if not already loaded
-    if (-not (Get-Module -ListAvailable -Name ExchangeOnlineManagement)) {
-        Install-Module -Name ExchangeOnlineManagement -Force -Scope CurrentUser
-    }
-
-    # Connect to Exchange Online with credentials
-    try {
-        Import-Module ExchangeOnlineManagement
-        Connect-ExchangeOnline -Credential $credentials -ShowProgress $false -AllowRedirection
-        Write-Host "Connected to Exchange Online successfully!" -ForegroundColor Green
-    }
-    catch {
-        Write-Host "Failed to connect to Exchange Online: $_" -ForegroundColor Red
-    }
-}
-
-}
-
-    Check-MSGPModuleI
-    IHS-USBDFWDSTS
-    
- [System.Windows.Forms.MessageBox]::Show("Forwarding report generated at: $outputPath", "Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-
-
-})
-$IHSUSBDFWDSTATUS.Add_MouseEnter({
-    $IHSUSBDFWDSTATUS.BackColor = "DarkRed"
-        $helpLabel.Text = "Mail forwarding report`n`nPurpose: Fill the UPN in template get the report in App Folder based on users.`nFeatures :- Fill the template based On Users`n`nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
-
-})
-$IHSUSBDFWDSTATUS.Add_MouseLeave({
-    $IHSUSBDFWDSTATUS.BackColor = "Green"
-    $helpLabel.Text = "Hover over any button to see its description here..."
-})
-
-
-$IHSUSBDDLGSTATUS = New-Object System.Windows.Forms.Button
-$IHSUSBDDLGSTATUS.Text = "Users Delegation Report"
-$IHSUSBDDLGSTATUS.AutoSize = $True
-$IHSUSBDDLGSTATUS.Location = New-Object System.Drawing.Point(270, 290)
-$IHSUSBDDLGSTATUS.ForeColor = "White"
-$IHSUSBDDLGSTATUS.BackColor = "Green"
-$IHSUSBDDLGSTATUS.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
-$IHSUSBDDLGSTATUS.Add_Click({
-[System.Windows.Forms.MessageBox]::Show("Prerequest Wait For 15 to check Module", "Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-
-function Check-MSGPModuleI {
-   function Connect-ExchangeOnline {
-    param (
-        [string]$UserPrincipalName
-    )
-    
-    # Prompt for credentials if UserPrincipalName is not specified
-    if (-not $UserPrincipalName) {
-        $credentials = Get-Credential -Message "Enter your Exchange Online credentials"
-    }
-    else {
-        # Use stored credentials if available
-        $credentials = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $UserPrincipalName, (Read-Host -AsSecureString "Enter Password")
-    }
-
-    # Import ExchangeOnlineManagement module if not already loaded
-    if (-not (Get-Module -ListAvailable -Name ExchangeOnlineManagement)) {
-        Install-Module -Name ExchangeOnlineManagement -Force -Scope CurrentUser
-    }
-
-    # Connect to Exchange Online with credentials
-    try {
-        Import-Module ExchangeOnlineManagement
-        Connect-ExchangeOnline -Credential $credentials -ShowProgress $false -AllowRedirection
-        Write-Host "Connected to Exchange Online successfully!" -ForegroundColor Green
-    }
-    catch {
-        Write-Host "Failed to connect to Exchange Online: $_" -ForegroundColor Red
-    }
-}
-
-}
-
-    Check-MSGPModuleI
-    IHS-USBDDLGSTS
-    
- [System.Windows.Forms.MessageBox]::Show("Forwarding report generated at: $outputPath", "Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-
-
-})
-$IHSUSBDDLGSTATUS.Add_MouseEnter({
-    $IHSUSBDDLGSTATUS.BackColor = "DarkRed"
-            $helpLabel.Text = "Mail Delegation report`n`nPurpose: Fill the UPN in template get the report in App Folder based on users.`nFeatures :- Fill the template based On Users`n`nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
-
-})
-$IHSUSBDDLGSTATUS.Add_MouseLeave({
-    $IHSUSBDDLGSTATUS.BackColor = "Green"
-    $helpLabel.Text = "Hover over any button to see its description here..."
-})
-
-
-$form.Controls.Add($labelIHS)
-$form.Controls.Add($IHSBLKLIC)
-$form.Controls.Add($IHSM365LC)
-$form.Controls.Add($IHSUSBDLICSTATUS)
-$form.Controls.Add($M365IHS)
-$form.Controls.Add($IHSGRPTSK)
-$form.Controls.Add($IHSGRPEXP)
-$form.Controls.Add($script5Button)
-$form.Controls.Add($script4Button)
-$form.Controls.Add($script3Button)
-$form.Controls.Add($script2Button)
-$form.Controls.Add($GPLFTIHS)
-$form.Controls.Add($CMTIHS)
-$form.Controls.Add($EmailUPIHS)
-$form.Controls.Add($script1Button)
-$form.Controls.Add($M365IHSIMID)
-$form.Controls.Add($IHSUSBDFWDSTATUS)
-$form.Controls.Add($IHSUSBDDLGSTATUS)
-$form.Controls.Add($logoutButton)
-$form.Controls.Add($helpPanel)
-
-
-
-
-
-
-$tooltip = New-Object System.Windows.Forms.ToolTip
-$tooltip.SetToolTip($labelIHS, "Ibrahim Script this will make task easier.")
-$tooltip.SetToolTip($IHSBLKLIC, "Fill the Template first for Licenses assign in Bulk Format.")
-$tooltip.SetToolTip($IHSM365LC, " Check the user name & licenses task for single user.")
-$tooltip.SetToolTip($IHSUSBDLICSTATUS, "Need UGDN on template for licenses Status & export status in Application Folder.")
-$tooltip.SetToolTip($M365IHS, "This Menu for M365 Task")
-$tooltip.SetToolTip($IHSGRPTSK, "We can Add & remove group in bulk format using template")
-$tooltip.SetToolTip($IHSGRPEXP, "Just need a group name it will export user list in CSV on application folder")
-$tooltip.SetToolTip($script5Button, "Module Menu We can install & connect")
-$tooltip.SetToolTip($script4Button, "We can export some user detail like AD dumps")
-$tooltip.SetToolTip($script3Button, "We can export User based on OU")
-$tooltip.SetToolTip($script2Button, "One click Export AD Dump in 20 min")
-$tooltip.SetToolTip($GPLFTIHS, "After mapping OLD UGDN group member auto add to New UGDN")
-$tooltip.SetToolTip($CMTIHS, "We can reset Comment for ServicesNow access")
-$tooltip.SetToolTip($EmailUPIHS, "We can add primary Email ID from UGDN ")
-$tooltip.SetToolTip($script1Button, "One Click Password reset")
-$tooltip.SetToolTip($M365IHSIMID, "If Need Immutable ID from UGDN After click it will Copy as well")
-$tooltip.SetToolTip($IHSUSBDFWDSTATUS, "User based Forwording Report using UPN from Template")
-$tooltip.SetToolTip($IHSUSBDDLGSTATUS, "User based Delegation Report using UPN from Template")
-
-$form.ShowDialog() | Out-Null
-
-}
-
-function Fetch-GistContent {
-    param (
-        [string]$url
-    )
-
-    try {
-        $content = Invoke-RestMethod -Uri $url -Method Get
-        return $content
-    } catch {
-        Write-Host "Error fetching content from IHS DataBase: $_" -ForegroundColor Red
-        return $null
-    }
-}
-
-
-Add-Type -AssemblyName System.Windows.Forms
-$MKDIR = "C:\IHS-Application"
-$ALL = "C:\IHS-Application\IHS-Template.csv"
-if (-not (Test-Path $MKDIR)) {
-New-Item -Path $MKDIR -ItemType Directory 
-}
-$IHSCSV = "UserName,AssignLicenses,RevokeLicenses,AddGroups,RemoveGroups,DLName,UserPrincipalName,Action.ToLower"
-Set-Content -Path $ALL -Value $IHSCSV
-Start-Transcript -Path C:\IHS-Application\IHS-LOGS-PS-MENU.log -Append
-Get-Date -Format "dddd MM/dd/yyyy HH:mm K"
-
 function IHS-USPWRST-MLUP {
 Add-Type -AssemblyName System.Windows.Forms
 $UGDNInputForm = New-Object System.Windows.Forms.Form
@@ -1027,7 +563,6 @@ $MAILInputResult = $MAILInputForm.ShowDialog()
 }
 
 function IHS-USCMTRST {
-Add-Type -AssemblyName System.Windows.Forms
 
 $UGDNInputForm = New-Object System.Windows.Forms.Form
 $UGDNInputForm.Text = "Enter UGDN"
@@ -1197,7 +732,7 @@ Write-Host "AD Users has been successfully Exported on C Drive"
 [System.Windows.Forms.MessageBox]::Show("Thanks for Using IHS Script `n AD Users has been successfully Exported on C Drive .", "Export Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
 }
 
-function IHS-ADOUEXP-PT {Add-Type -AssemblyName System.Windows.Forms
+function IHS-ADOUEXP-PT {
 
 $IHSFMOU = New-Object System.Windows.Forms.Form
 $IHSFMOU.Text = "OU Path Input"
@@ -2192,20 +1727,6 @@ Write-Host "License details exported to $IHSUSOULICSTS"
 } 
 
 function IHS-USBDFWDSTS {
-if (-not (Get-Module -ListAvailable -Name Microsoft.Graph.Users)) {
-    Write-Host "Microsoft Graph PowerShell module is not installed. Installing it now..."
-    Install-Module -Name Microsoft.Graph -Force -Scope CurrentUser
-} else {
-    Write-Host "Microsoft Graph PowerShell module is already installed."
-}
-
-try {
-    Connect-MgGraph -Scopes "MailboxSettings.Read User.Read.All"
-    Write-Host "Successfully connected to Microsoft Graph." -ForegroundColor Green
-} catch {
-    Write-Host "Error connecting to Microsoft Graph: $_" -ForegroundColor Red
-    exit 1
-}
 
 $userListPath = "C:\IHS-Application\IHS-Template.csv"
 $outputPath = "C:\IHS-Application\IHS-Forwarding-Report-$(Get-Date -Format dd-MM-yy_hh-mm).csv"
@@ -2248,7 +1769,8 @@ if ($forwardingReport.Count -gt 0) {
 
 }
 
-function IHS-USBDDLGSTS { function Check-ExchangeOnlineModule { if (-not (Get-Module -ListAvailable -Name ExchangeOnlineManagement)) {  Write-Host "Exchange Online Management module is not installed. Installing it now..."  Install-Module -Name ExchangeOnlineManagement -Force -AllowClobber -Scope CurrentUser  } else {  Write-Host "Exchange Online Management module is already installed."  }}
+function IHS-USBDDLGSTS {
+function Check-ExchangeOnlineModule { if (-not (Get-Module -ListAvailable -Name ExchangeOnlineManagement)) {  Write-Host "Exchange Online Management module is not installed. Installing it now..."  Install-Module -Name ExchangeOnlineManagement -Force -AllowClobber -Scope CurrentUser  } else {  Write-Host "Exchange Online Management module is already installed."  }}
 function Connect-ToExchangeOnlineFWD {  try {  Connect-ExchangeOnline  } catch { Write-Host "Error connecting to Exchange Online: $_"  exit 1 }  Write-Host "Successfully connected to Exchange Online."  }
 Check-ExchangeOnlineModule   
 Connect-ToExchangeOnlineFWD
@@ -2301,8 +1823,710 @@ foreach ($user in $userList) {
 
 $combinedReport | Export-Csv -Path $outputPath -NoTypeInformation -Force
 
-Write-Host "Combined delegation report generated at: $outputPath" -ForegroundColor Green}
+Write-Host "Combined delegation report generated at: $outputPath" -ForegroundColor Green
+
+
+}
+
+function IHSMDIHS{
+
+function New-StyledButton {
+    param (
+        [string]$Text,
+        [int]$X,
+        [int]$Y,
+        [int]$Width = 180,
+        [int]$Height = 40
+    )
+    $button = New-Object System.Windows.Forms.Button
+    $button.Location = New-Object System.Drawing.Point($X, $Y)
+    $button.Size = New-Object System.Drawing.Size($Width, $Height)
+    $button.Text = $Text
+    $button.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $button.FlatAppearance.BorderSize = 0
+    $button.BackColor = [System.Drawing.Color]::FromArgb(70, 130, 180)
+    $button.ForeColor = [System.Drawing.Color]::White
+    $button.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+    $button.Cursor = [System.Windows.Forms.Cursors]::Hand
+    $button.Add_MouseEnter({ $this.BackColor = [System.Drawing.Color]::FromArgb(100, 160, 210) })
+    $button.Add_MouseLeave({ $this.BackColor = [System.Drawing.Color]::FromArgb(70, 130, 180) })
+    return $button
+}
+
+function New-StyledForm {
+    param (
+        [string]$Title,
+        [int]$Width,
+        [int]$Height
+    )
+    $IHSFMMD = New-Object System.Windows.Forms.Form
+    $IHSFMMD.Text = $Title
+    $IHSFMMD.Size = New-Object System.Drawing.Size($Width, $Height)
+    $IHSFMMD.StartPosition = "CenterScreen"
+    $IHSFMMD.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+    $IHSFMMD.MaximizeBox = $false
+    $IHSFMMD.BackColor = [System.Drawing.Color]::FromArgb(240, 240, 240)
+    return $IHSFMMD
+}
+
+$IHSFMMD = New-StyledForm -Title "Module Check and Connect" -Width 600 -Height 220
+$IHSFMMD.MaximizeBox = $false
+$IHSFMMD.MinimizeBox = $false
+$IHSFMMD.BackColor = [System.Drawing.Color]::White
+$IHSFMMD.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+
+$mainPanel = New-Object System.Windows.Forms.TableLayoutPanel
+$mainPanel.Dock = "Fill"
+$mainPanel.Padding = New-Object System.Windows.Forms.Padding(10, 10, 10, 10)
+$mainPanel.ColumnCount = 4
+$mainPanel.RowCount = 4
+$mainPanel.BackColor = [System.Drawing.Color]::White
+$mainPanel.CellBorderStyle = [System.Windows.Forms.TableLayoutPanelCellBorderStyle]::Single
+
+$mainPanel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 25)))
+$mainPanel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 25)))
+$mainPanel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 25)))
+$mainPanel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 25)))
+
+0..3 | ForEach-Object {
+    $mainPanel.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 25)))
+}
+
+$headerStyle = @{
+    Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+    BackColor = [System.Drawing.Color]::FromArgb(240, 240, 240)
+    ForeColor = [System.Drawing.Color]::FromArgb(60, 60, 60)
+}
+
+$headers = @("Service", "Module Status", "Connection Status", "Action")
+0..3 | ForEach-Object {
+    $header = New-Object System.Windows.Forms.Label
+    $header.Text = $headers[$_]
+    $header.Font = $headerStyle.Font
+    $header.BackColor = $headerStyle.BackColor
+    $header.ForeColor = $headerStyle.ForeColor
+    $header.Dock = "Fill"
+    $header.TextAlign = "MiddleCenter"
+    $mainPanel.Controls.Add($header, $_, 0)
+}
+
+$services = @{
+    "Azure AD" = @{
+        ModuleName = "AzureAD"
+        ConnectCmd = { Connect-AzureAD -ShowBanner:$false }
+    }
+    "Exchange Online" = @{
+        ModuleName = "ExchangeOnlineManagement"
+        ConnectCmd = { Connect-ExchangeOnline -ShowBanner:$false }
+    }
+    "Microsoft Graph" = @{
+        ModuleName = "Microsoft.Graph"
+        ConnectCmd = { Connect-MgGraph -ShowBanner:$false  } #-Scopes "User.Read.All" 
+    }
+}
+
+$labelStyle = @{
+    Font = New-Object System.Drawing.Font("Segoe UI", 9.5)
+    BackColor = [System.Drawing.Color]::White
+    TextAlign = "MiddleCenter"
+    Dock = "Fill"
+    Margin = New-Object System.Windows.Forms.Padding(3, 3, 3, 3)
+}
+
+# Add Service Rows
+$row = 1
+foreach ($service in $services.Keys) {
+    $serviceLabel = New-Object System.Windows.Forms.Label
+    $serviceLabel.Text = $service
+    $serviceLabel.Font = $labelStyle.Font
+    $serviceLabel.BackColor = $labelStyle.BackColor
+    $serviceLabel.TextAlign = $labelStyle.TextAlign
+    $serviceLabel.Dock = $labelStyle.Dock
+    $serviceLabel.Margin = $labelStyle.Margin
+    $mainPanel.Controls.Add($serviceLabel, 0, $row)
+
+    $moduleStatus = New-Object System.Windows.Forms.Label
+    $moduleStatus.Font = $labelStyle.Font
+    $moduleStatus.BackColor = $labelStyle.BackColor
+    $moduleStatus.TextAlign = $labelStyle.TextAlign
+    $moduleStatus.Dock = $labelStyle.Dock
+    $moduleStatus.Margin = $labelStyle.Margin
+    if (Get-Module -ListAvailable $services[$service].ModuleName) {
+        $moduleStatus.Text = "✓ Installed"
+        $moduleStatus.ForeColor = [System.Drawing.Color]::Green
+    } else {
+        $moduleStatus.Text = "✗ Not Installed"
+        $moduleStatus.ForeColor = [System.Drawing.Color]::Red
+    }
+    $mainPanel.Controls.Add($moduleStatus, 1, $row)
+
+    $connectionStatus = New-Object System.Windows.Forms.Label
+    $connectionStatus.Text = "Not Connected"
+    $connectionStatus.Font = $labelStyle.Font
+    $connectionStatus.BackColor = $labelStyle.BackColor
+    $connectionStatus.TextAlign = $labelStyle.TextAlign
+    $connectionStatus.Dock = $labelStyle.Dock
+    $connectionStatus.Margin = $labelStyle.Margin
+    $connectionStatus.ForeColor = [System.Drawing.Color]::Red
+    $mainPanel.Controls.Add($connectionStatus, 2, $row)
+
+    $connectButton = New-Object System.Windows.Forms.Button
+    $connectButton.Text = "Connect"
+    $connectButton.Font = $labelStyle.Font
+    $connectButton.Dock = "Fill"
+    $connectButton.Margin = New-Object System.Windows.Forms.Padding(10, 5, 10, 5)
+    $connectButton.BackColor = [System.Drawing.Color]::FromArgb(240, 240, 240)
+    $connectButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $connectButton.Tag = @{
+        Service = $service
+        StatusLabel = $connectionStatus
+    }
+
+    $connectButton.Add_Click({
+        $serviceInfo = $this.Tag
+        $service = $serviceInfo.Service
+        $status = $serviceInfo.StatusLabel
+        
+        $this.Enabled = $false
+        $status.Text = "⟳ Connecting..."
+        $status.ForeColor = [System.Drawing.Color]::Blue
+        
+        Start-Job -Name "Connect_$service" -ScriptBlock {
+            param($serviceName, $moduleData)
+            Import-Module $moduleData.ModuleName -Force
+            & $moduleData.ConnectCmd
+        } -ArgumentList $service, $services[$service]
+    })
+    
+    $mainPanel.Controls.Add($connectButton, 3, $row)
+    $row++
+}
+
+$timer = New-Object System.Windows.Forms.Timer
+$timer.Interval = 500
+$timer.Add_Tick({
+    Get-Job | Where-Object { $_.Name -like "Connect_*" } | ForEach-Object {
+        $serviceName = $_.Name -replace "Connect_"
+        $row = [array]::IndexOf(($services.Keys), $serviceName) + 1
+        $button = $mainPanel.GetControlFromPosition(3, $row)
+        $status = $mainPanel.GetControlFromPosition(2, $row)
+        
+        if ($_.State -eq "Completed") {
+            $status.Text = "✓ Connected"
+            $status.ForeColor = [System.Drawing.Color]::Green
+            $button.Text = "Connected"
+            $button.BackColor = [System.Drawing.Color]::FromArgb(225, 240, 225)
+            Remove-Job $_
+        }
+        elseif ($_.State -eq "Failed") {
+            $error = Receive-Job $_
+            $status.Text = "✗ Failed"
+            $status.ForeColor = [System.Drawing.Color]::Red
+            $button.Text = "Connect"
+            $button.Enabled = $true
+            Remove-Job $_
+            [System.Windows.Forms.MessageBox]::Show($error, "Connection Error", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+        }
+    }
+})
+$timer.Start()
+
+$IHSFMMD.Controls.Add($mainPanel)
+$IHSFMMD.Add_FormClosing({ 
+    $timer.Stop()
+    Get-Job | Remove-Job -Force
+})
+[void]$IHSFMMD.ShowDialog()
+
+}
+
+
+function Show-MainForm {
+
+function Get-ImageFromUrl1 {
+    param (
+        [string]$Url
+    )
+    try {
+        $webClient = New-Object System.Net.WebClient
+        $imageStream = $webClient.OpenRead($Url)
+        $image = [System.Drawing.Image]::FromStream($imageStream)
+        $imageStream.Close()
+        return $image
+    } catch {
+        Write-Error "Failed to load image from $Url. $_"
+        return $null
+    }
+}
+
+$form = New-Object System.Windows.Forms.Form
+$form.Text = "Ibrahim UPL Scripts = Advanced IHS Menu"
+$form.AutoSize = $True
+#$form.BackColor = [System.Drawing.Color]::LightBlue
+$form.StartPosition = "CenterScreen"
+
+$backgroundPanel1 = New-Object System.Windows.Forms.Panel
+$backgroundPanel1.Dock = [System.Windows.Forms.DockStyle]::Fill
+$formLogin.Controls.Add($backgroundPanel1)
+
+$backgroundImageUrl1 = "https://github.com/Imran1010/Applogin/blob/main/Untitled.jpg?raw=true"
+$backgroundImage1 = Get-ImageFromUrl1 -Url $backgroundImageUrl1
+if ($backgroundImage1) {
+    $backgroundPanel1.BackgroundImage = $backgroundImage1
+    $backgroundPanel1.BackgroundImageLayout = [System.Windows.Forms.ImageLayout]::Stretch
+}
+
+$controlsPanel = New-Object System.Windows.Forms.Panel
+$controlsPanel.Size = New-Object System.Drawing.Size(300, 210)
+$controlsPanel.Location = New-Object System.Drawing.Point(112, 75)  # Center the panel
+$controlsPanel.BackColor = [System.Drawing.Color]::FromArgb(80, [System.Drawing.Color]::White)  
+$backgroundPanel1.Controls.Add($controlsPanel)
+
+$labelIHS = New-Object System.Windows.Forms.Label
+$labelIHS.Text = "IHS UPL Script : AD Menu"
+$labelIHS.AutoSize = $True
+$labelIHS.Size = New-Object System.Drawing.Size(250, 30) 
+$labelIHS.Location = New-Object System.Drawing.Point(6, 10)
+$labelIHS.Font = New-Object System.Drawing.Font("Cambria",14,[System.Drawing.FontStyle]::Bold)
+$labelIHS.ForeColor = "Black"
+
+$helpPanel = New-Object System.Windows.Forms.Panel
+$helpPanel.Size = New-Object System.Drawing.Size(200, 330)
+$helpPanel.Location = New-Object System.Drawing.Point(480, 10)
+$helpPanel.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
+$helpPanel.BackColor = [System.Drawing.Color]::FromArgb(240, 240, 240)
+
+$helpLabel = New-Object System.Windows.Forms.Label
+$helpLabel.Size = New-Object System.Drawing.Size(200, 300)
+$helpLabel.Location = New-Object System.Drawing.Point(10, 10)
+$helpLabel.Font = New-Object System.Drawing.Font("Calibri", 10)
+$helpLabel.Text = "Hover over any button to see its description here..."
+$helpPanel.Controls.Add($helpLabel)
+
+    $logoutButton = New-Object System.Windows.Forms.Button
+    $logoutButton.Text = "Logout"
+    $logoutButton.Location = New-Object System.Drawing.Point(380, 10)
+    $logoutButton.ForeColor = "White"
+    $logoutButton.BackColor = "Gray"
+    $logoutButton.Add_Click({          
+                $form.Hide()  
+                Show-LoginForm  
+                $form.Close()
+    })
+    $logoutButton.Add_MouseEnter({ $logoutButton.BackColor = "DarkRed" })
+    $logoutButton.Add_MouseLeave({ $logoutButton.BackColor = "Gray" })
+
+     $IHDNDLBT = New-Object System.Windows.Forms.Button
+    $IHDNDLBT.Text = "Module Check"
+    $IHDNDLBT.Location = New-Object System.Drawing.Point(280, 10)
+    $IHDNDLBT.AutoSize = $True
+    $IHDNDLBT.ForeColor = "White"
+    $IHDNDLBT.BackColor = "Gray"
+    $IHDNDLBT.Add_Click({
+             Show-ModuleStatusForm    
+    })
+    $IHDNDLBT.Add_MouseEnter({ $IHDNDLBT.BackColor = "DarkRed" })
+    $IHDNDLBT.Add_MouseLeave({ $IHDNDLBT.BackColor = "Gray" })
+
+$script1Button = New-Object System.Windows.Forms.Button
+$script1Button.Text = "User Password Reset"
+$script1Button.AutoSize = $True
+$script1Button.Location = New-Object System.Drawing.Point(10, 40)
+$script1Button.ForeColor = "White"
+$script1Button.BackColor = "Green"
+$script1Button.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
+$script1Button.Add_Click({
+    IHS-USPWRST-MLUP
+})
+$script1Button.Add_MouseEnter({
+    $script1Button.BackColor = "DarkRed"
+    $helpLabel.Text = "User Password Reset`n`nThis tool allows administrators to reset user passwords in Active Directory.`n`nFeatures:`n- Secure password generation`n- Immediate password reset`n- Forces password change at next logon`n- Logs password reset actions"
+})
+$script1Button.Add_MouseLeave({
+    $script1Button.BackColor = "Green"
+    $helpLabel.Text = "Hover over any button to see its description here..."
+})
+
+$EmailUPIHS = New-Object System.Windows.Forms.Button
+$EmailUPIHS.Text = "User Email Update"
+$EmailUPIHS.AutoSize = $True
+$EmailUPIHS.Location = New-Object System.Drawing.Point(270, 40)
+$EmailUPIHS.ForeColor = "White"
+$EmailUPIHS.BackColor = "Green"
+$EmailUPIHS.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
+$EmailUPIHS.Add_Click({
+    IHS-USEMUP
+})
+$EmailUPIHS.Add_MouseEnter({
+    $EmailUPIHS.BackColor = "DarkRed"
+     $helpLabel.Text = "User Email Update`n`nUpdates user email addresses in Active Directory.`n`nFeatures:`n- Batch email updates`n- Validation of email format`n- Updates primary and proxy addresses`n- Syncs with Exchange"
+})
+$EmailUPIHS.Add_MouseLeave({
+    $EmailUPIHS.BackColor = "Green"
+    $helpLabel.Text = "Hover over any button to see its description here..."
+})
+
+
+$CMTIHS = New-Object System.Windows.Forms.Button
+$CMTIHS.Text = "Comment Reset"
+$CMTIHS.AutoSize = $True
+$CMTIHS.Location = New-Object System.Drawing.Point(270, 70)
+$CMTIHS.ForeColor = "White"
+$CMTIHS.BackColor = "Green"
+$CMTIHS.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
+$CMTIHS.Add_Click({
+    IHS-USCMTRST
+})
+$CMTIHS.Add_MouseEnter({
+    $CMTIHS.BackColor = "DarkRed"
+    $helpLabel.Text = "Comment Reset`n`nManages and resets user comment fields in Active Directory.`n`nFeatures:`n- Clear existing comments`n- Add new standardized comments`n- Bulk comment updates`n- Comment history tracking"
+})
+$CMTIHS.Add_MouseLeave({
+    $CMTIHS.BackColor = "Green"
+    $helpLabel.Text = "Hover over any button to see its description here..."
+})
+
+$GPLFTIHS = New-Object System.Windows.Forms.Button
+$GPLFTIHS.Text = "Group Lifting After Mapping"
+$GPLFTIHS.AutoSize = $True
+$GPLFTIHS.Location = New-Object System.Drawing.Point(10, 70)
+$GPLFTIHS.ForeColor = "White"
+$GPLFTIHS.BackColor = "Green"
+$GPLFTIHS.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
+$GPLFTIHS.Add_Click({
+    IHS-GRPLFT
+})
+$GPLFTIHS.Add_MouseEnter({
+    $GPLFTIHS.BackColor = "DarkRed"
+$helpLabel.Text = "Group Lifting`n`nPurpose: Manages automatic group migration from OLD UGDN to NEW UGDN in Active Directory.`nFeatures :- Automatically detects all groups from OLD UGDN `n- Creates corresponding groups in NEW UGDN `n- Validates successful migration `n3. Transfers all group memberships `nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
+})
+$GPLFTIHS.Add_MouseLeave({
+    $GPLFTIHS.BackColor = "Green"
+    $helpLabel.Text = "Hover over any button to see its description here..."
+})
+
+$script2Button = New-Object System.Windows.Forms.Button
+$script2Button.Text = "AD User Dump IHS Report "
+$script2Button.AutoSize = $True
+$script2Button.Location = New-Object System.Drawing.Point(10, 100)
+$script2Button.ForeColor = "White"
+$script2Button.BackColor = "Green"
+$script2Button.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
+$script2Button.Add_Click({
+$date = Get-Date -Format "yyyyMMdd"
+$IHSEXPATH = 'c:\ADUserexport -$date .csv’
+    IHS-ADEXP-PT -ExportPath $IHSEXPATH
+})
+$script2Button.Add_MouseEnter({
+    $script2Button.BackColor = "DarkRed"
+    $helpLabel.Text = "AD User Dump IHS Report`n`nPurpose: Export All user in Active Directory With UPL Attributes.`nFeatures :- Automatically detects all Members from AD`n- Export with in 15 min in one click`n`nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
+})
+$script2Button.Add_MouseLeave({
+    $script2Button.BackColor = "Green"
+    $helpLabel.Text = "Hover over any button to see its description here..."
+})
+
+$script3Button = New-Object System.Windows.Forms.Button
+$script3Button.Text = "AD Export OU BASED"
+$script3Button.AutoSize = $True
+$script3Button.Location = New-Object System.Drawing.Point(270, 100)
+$script3Button.ForeColor = "White"
+$script3Button.BackColor = "Green"
+$script3Button.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
+$script3Button.Add_Click({
+    IHS-ADOUEXP-PT
+})
+$script3Button.Add_MouseEnter({
+    $script3Button.BackColor = "DarkRed"
+    $helpLabel.Text = "AD OU Users detail export`n`nPurpose: Export user based on OU ,Its will export users from in Active Directory With UPL Attributes.`nFeatures :- Automatically detects OU & export Users `n- Export Member detail based on OU`n`nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
+})
+$script3Button.Add_MouseLeave({
+    $script3Button.BackColor = "Green"
+    $helpLabel.Text = "Hover over any button to see its description here..."
+})
+
+$script4Button = New-Object System.Windows.Forms.Button
+$script4Button.Text = "AD Export as List based"
+$script4Button.AutoSize = $True
+$script4Button.Location = New-Object System.Drawing.Point(10, 130)
+$script4Button.ForeColor = "White"
+$script4Button.BackColor = "Green"
+$script4Button.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
+$script4Button.Add_Click({
+    IHSADLISTTY
+})
+$script4Button.Add_MouseEnter({
+    $script4Button.BackColor = "DarkRed"
+    $helpLabel.Text = "AD user detail Based on user list`n`nPurpose: Export user based on template fill the UGDN in template its will export users from in Active Directory With UPL Attributes.`nFeatures :- Automatically detects Users from Template Members `n- Export Member detail based on users List`n`nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
+})
+$script4Button.Add_MouseLeave({
+    $script4Button.BackColor = "Green"
+    $helpLabel.Text = "Hover over any button to see its description here..."
+})
+
+
+$IHSMDINT = New-Object System.Windows.Forms.Button
+$IHSMDINT.Text = "Modules Installer"
+$IHSMDINT.AutoSize = $True
+$IHSMDINT.Location = New-Object System.Drawing.Point(10, 160)
+$IHSMDINT.ForeColor = "White"
+$IHSMDINT.BackColor = "Green"
+$IHSMDINT.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
+$IHSMDINT.Add_Click({
+    IHS-MDINT
+    
+})
+$IHSMDINT.Add_MouseEnter({
+    $IHSMDINT.BackColor = "DarkRed"
+        $helpLabel.Text = "One Click Module Install`n`nPurpose: We can Install Module on One Click`nFeatures :- RSAT Windows 10 & above`n- `n Azure AD Module `nExchange Online Module `nMS Graph Module  `nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
+})
+$IHSMDINT.Add_MouseLeave({
+    $IHSMDINT.BackColor = "Green"
+    $helpLabel.Text = "Hover over any button to see its description here..."
+})
+
+$IHSGRPEXP = New-Object System.Windows.Forms.Button
+$IHSGRPEXP.Text = "Group Users Export"
+$IHSGRPEXP.AutoSize = $True
+$IHSGRPEXP.Location = New-Object System.Drawing.Point(270, 130)
+$IHSGRPEXP.ForeColor = "White"
+$IHSGRPEXP.BackColor = "Green"
+$IHSGRPEXP.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
+$IHSGRPEXP.Add_Click({
+
+    IHS-ADGRPEXP-PT
+    
+})
+$IHSGRPEXP.Add_MouseEnter({
+    $IHSGRPEXP.BackColor = "DarkRed"
+            $helpLabel.Text = "Groups User Export`n`nPurpose: Export user based on Group Name from in Active Directory .`nFeatures :- Automatically detects Users from Groups Members`n`nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
+})
+$IHSGRPEXP.Add_MouseLeave({
+    $IHSGRPEXP.BackColor = "Green"
+    $helpLabel.Text = "Hover over any button to see its description here..."
+})
+
+$IHSGRPTSK = New-Object System.Windows.Forms.Button
+$IHSGRPTSK.Text = "Multiple Group Task"
+$IHSGRPTSK.AutoSize = $True
+$IHSGRPTSK.Location = New-Object System.Drawing.Point(270, 160)
+$IHSGRPTSK.ForeColor = "White"
+$IHSGRPTSK.BackColor = "Green"
+$IHSGRPTSK.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
+$IHSGRPTSK.Add_Click({
+
+    IHS-MLTGRP
+    
+})
+$IHSGRPTSK.Add_MouseEnter({
+    $IHSGRPTSK.BackColor = "DarkRed"
+    $helpLabel.Text = "Groups User Export`n`nPurpose: We can Add & remove group in bulk format using template.`nFeatures :- Fill the template based on Groups Members`n`nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
+})
+$IHSGRPTSK.Add_MouseLeave({
+    $IHSGRPTSK.BackColor = "Green"
+    $helpLabel.Text = "Hover over any button to see its description here..."
+})
+
+$M365IHS = New-Object System.Windows.Forms.Label
+$M365IHS.Text = "IHS UPL Script : M365 Menu"
+$M365IHS.AutoSize = $True
+$M365IHS.Size = New-Object System.Drawing.Size(250, 30) # Set the desired width and height
+$M365IHS.Location = New-Object System.Drawing.Point(6, 200)
+$M365IHS.Font = New-Object System.Drawing.Font("Cambria",14,[System.Drawing.FontStyle]::Bold)
+$M365IHS.ForeColor = "Black"
+
+
+$M365IHSIMID = New-Object System.Windows.Forms.Button
+$M365IHSIMID.Text = "Show Immutable ID"
+$M365IHSIMID.AutoSize = $True
+$M365IHSIMID.Location = New-Object System.Drawing.Point(10, 230)
+$M365IHSIMID.ForeColor = "White"
+$M365IHSIMID.BackColor = "Green"
+$M365IHSIMID.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
+$M365IHSIMID.Add_Click({
+    IHD-USSHIMUT
+})
+$M365IHSIMID.Add_MouseEnter({
+    $M365IHSIMID.BackColor = "DarkRed"
+        $helpLabel.Text = "One Click Immutable ID`n`nPurpose: Just Need UGDN one Click Immutable ID Copy`nFeatures :- Auto Copy just put UGDN & Enter`n`nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
+
+})
+$M365IHSIMID.Add_MouseLeave({
+    $M365IHSIMID.BackColor = "Green"
+    $helpLabel.Text = "Hover over any button to see its description here..."
+})
+
+$IHSUSBDLICSTATUS = New-Object System.Windows.Forms.Button
+$IHSUSBDLICSTATUS.Text = "User based License status"
+$IHSUSBDLICSTATUS.AutoSize = $True
+$IHSUSBDLICSTATUS.Location = New-Object System.Drawing.Point(10, 260)
+$IHSUSBDLICSTATUS.ForeColor = "White"
+$IHSUSBDLICSTATUS.BackColor = "Green"
+$IHSUSBDLICSTATUS.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
+$IHSUSBDLICSTATUS.Add_Click({
+    IHS-USBDLICSTS
+ [System.Windows.Forms.MessageBox]::Show("License details exported to $IHSUSOULICSTS", "Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+
+
+})
+$IHSUSBDLICSTATUS.Add_MouseEnter({
+    $IHSUSBDLICSTATUS.BackColor = "DarkRed"
+        $helpLabel.Text = "User Licenses detail based on Users`n`nPurpose: Fill the template based on User we get the licenses Detail`nFeatures :- One click licenses detail Exported to App Folder`n`nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
+
+})
+$IHSUSBDLICSTATUS.Add_MouseLeave({
+    $IHSUSBDLICSTATUS.BackColor = "Green"
+    $helpLabel.Text = "Hover over any button to see its description here..."
+})
+
+
+$IHSM365LC = New-Object System.Windows.Forms.Button
+$IHSM365LC.Text = "IHS License Menu"
+$IHSM365LC.AutoSize = $True
+$IHSM365LC.Location = New-Object System.Drawing.Point(270, 230)
+$IHSM365LC.ForeColor = "White"
+$IHSM365LC.BackColor = "Green"
+$IHSM365LC.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
+$IHSM365LC.Add_Click({
+
+IHSM365LCMU
+
+
+})
+$IHSM365LC.Add_MouseEnter({
+    $IHSM365LC.BackColor = "DarkRed"
+        $helpLabel.Text = "License assigned based on UGDN`n`nPurpose: We check UGDN licenses assigned & revoked easly but possible in Entra Network`nFeatures :- Chcek & assigned & Revoke licenses based on UGDN`n`nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
+
+})
+$IHSM365LC.Add_MouseLeave({
+    $IHSM365LC.BackColor = "Green"
+    $helpLabel.Text = "Hover over any button to see its description here..."
+})
+
+
+$IHSBLKLIC = New-Object System.Windows.Forms.Button
+$IHSBLKLIC.Text = "IHS Bulk License Task"
+$IHSBLKLIC.AutoSize = $True
+$IHSBLKLIC.Location = New-Object System.Drawing.Point(270, 260)
+$IHSBLKLIC.ForeColor = "White"
+$IHSBLKLIC.BackColor = "Green"
+$IHSBLKLIC.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
+$IHSBLKLIC.Add_Click({
+
+IHS-BLKLICTASK
+[System.Windows.Forms.MessageBox]::Show("We have Completed the licenses Task", "Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+
+
+})
+$IHSBLKLIC.Add_MouseEnter({
+    $IHSBLKLIC.BackColor = "DarkRed"
+        $helpLabel.Text = "Licenses assign Task in Bulk`n`nPurpose: We can assigned licenes in bulk using template on app folder.`nFeatures :- We can assign & Revoke license in Bulk Format `n`nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
+
+})
+$IHSBLKLIC.Add_MouseLeave({
+    $IHSBLKLIC.BackColor = "Green"
+    $helpLabel.Text = "Hover over any button to see its description here..."
+})
+
+
+$IHSUSBDFWDSTATUS = New-Object System.Windows.Forms.Button
+$IHSUSBDFWDSTATUS.Text = "Mail Forwarding Report"
+$IHSUSBDFWDSTATUS.AutoSize = $True
+$IHSUSBDFWDSTATUS.Location = New-Object System.Drawing.Point(10, 290)
+$IHSUSBDFWDSTATUS.ForeColor = "White"
+$IHSUSBDFWDSTATUS.BackColor = "Green"
+$IHSUSBDFWDSTATUS.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
+$IHSUSBDFWDSTATUS.Add_Click({
+    IHS-USBDFWDSTS
+    
+ [System.Windows.Forms.MessageBox]::Show("Forwarding report generated at: $outputPath", "Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+
+
+})
+$IHSUSBDFWDSTATUS.Add_MouseEnter({
+    $IHSUSBDFWDSTATUS.BackColor = "DarkRed"
+        $helpLabel.Text = "Mail forwarding report`n`nPurpose: Fill the UPN in template get the report in App Folder based on users.`nFeatures :- Fill the template based On Users`n`nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
+
+})
+$IHSUSBDFWDSTATUS.Add_MouseLeave({
+    $IHSUSBDFWDSTATUS.BackColor = "Green"
+    $helpLabel.Text = "Hover over any button to see its description here..."
+})
+
+
+$IHSUSBDDLGSTATUS = New-Object System.Windows.Forms.Button
+$IHSUSBDDLGSTATUS.Text = "Users Delegation Report"
+$IHSUSBDDLGSTATUS.AutoSize = $True
+$IHSUSBDDLGSTATUS.Location = New-Object System.Drawing.Point(270, 290)
+$IHSUSBDDLGSTATUS.ForeColor = "White"
+$IHSUSBDDLGSTATUS.BackColor = "Green"
+$IHSUSBDDLGSTATUS.Font = New-Object System.Drawing.Font("Cambria",12,[System.Drawing.FontStyle]::Bold)
+$IHSUSBDDLGSTATUS.Add_Click({
+    IHS-USBDDLGSTS
+    
+ [System.Windows.Forms.MessageBox]::Show("Forwarding report generated at: $outputPath", "Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+
+
+})
+$IHSUSBDDLGSTATUS.Add_MouseEnter({
+    $IHSUSBDDLGSTATUS.BackColor = "DarkRed"
+            $helpLabel.Text = "Mail Delegation report`n`nPurpose: Fill the UPN in template get the report in App Folder based on users.`nFeatures :- Fill the template based On Users`n`nNote: For assistance, contact Ibrahim (India.coreitsupport@support.com)"
+
+})
+$IHSUSBDDLGSTATUS.Add_MouseLeave({
+    $IHSUSBDDLGSTATUS.BackColor = "Green"
+    $helpLabel.Text = "Hover over any button to see its description here..."
+})
+
+
+$form.Controls.Add($labelIHS)
+$form.Controls.Add($IHSBLKLIC)
+$form.Controls.Add($IHSM365LC)
+$form.Controls.Add($IHSUSBDLICSTATUS)
+$form.Controls.Add($M365IHS)
+$form.Controls.Add($IHSGRPTSK)
+$form.Controls.Add($IHSGRPEXP)
+$form.Controls.Add($IHSMDINT)
+$form.Controls.Add($script4Button)
+$form.Controls.Add($script3Button)
+$form.Controls.Add($script2Button)
+$form.Controls.Add($GPLFTIHS)
+$form.Controls.Add($CMTIHS)
+$form.Controls.Add($EmailUPIHS)
+$form.Controls.Add($script1Button)
+$form.Controls.Add($M365IHSIMID)
+$form.Controls.Add($IHSUSBDFWDSTATUS)
+$form.Controls.Add($IHSUSBDDLGSTATUS)
+$form.Controls.Add($logoutButton)
+$form.Controls.Add($helpPanel)
+$form.Controls.Add($IHDNDLBT)
+
+
+
+
+
+$tooltip = New-Object System.Windows.Forms.ToolTip
+$tooltip.SetToolTip($labelIHS, "Ibrahim Script this will make task easier.")
+$tooltip.SetToolTip($IHSBLKLIC, "Fill the Template first for Licenses assign in Bulk Format.")
+$tooltip.SetToolTip($IHSM365LC, " Check the user name & licenses task for single user.")
+$tooltip.SetToolTip($IHSUSBDLICSTATUS, "Need UGDN on template for licenses Status & export status in Application Folder.")
+$tooltip.SetToolTip($M365IHS, "This Menu for M365 Task")
+$tooltip.SetToolTip($IHSGRPTSK, "We can Add & remove group in bulk format using template")
+$tooltip.SetToolTip($IHSGRPEXP, "Just need a group name it will export user list in CSV on application folder")
+$tooltip.SetToolTip($IHSMDINT, "Module Menu We can install & connect")
+$tooltip.SetToolTip($script4Button, "We can export some user detail like AD dumps")
+$tooltip.SetToolTip($script3Button, "We can export User based on OU")
+$tooltip.SetToolTip($script2Button, "One click Export AD Dump in 20 min")
+$tooltip.SetToolTip($GPLFTIHS, "After mapping OLD UGDN group member auto add to New UGDN")
+$tooltip.SetToolTip($CMTIHS, "We can reset Comment for ServicesNow access")
+$tooltip.SetToolTip($EmailUPIHS, "We can add primary Email ID from UGDN ")
+$tooltip.SetToolTip($script1Button, "One Click Password reset")
+$tooltip.SetToolTip($M365IHSIMID, "If Need Immutable ID from UGDN After click it will Copy as well")
+$tooltip.SetToolTip($IHSUSBDFWDSTATUS, "User based Forwording Report using UPN from Template")
+$tooltip.SetToolTip($IHSUSBDDLGSTATUS, "User based Delegation Report using UPN from Template")
+
+$form.ShowDialog() | Out-Null
+
+}
 
 Show-LoginForm
-
-Stop-Transcript

@@ -230,7 +230,7 @@ function Show-ModuleStatusForm {
         }
         "Microsoft Graph" = @{
             ModuleName = "Microsoft.Graph"
-            ConnectCmd = { Connect-MgGraph -ShowBanner:$false }
+            ConnectCmd = { Connect-MgGraph }
         }
     }
 
@@ -1727,45 +1727,48 @@ Write-Host "License details exported to $IHSUSOULICSTS"
 } 
 
 function IHS-USBDFWDSTS {
-
 $userListPath = "C:\IHS-Application\IHS-Template.csv"
 $outputPath = "C:\IHS-Application\IHS-Forwarding-Report-$(Get-Date -Format dd-MM-yy_hh-mm).csv"
-
 $userList = Import-Csv -Path $userListPath | Select-Object -ExpandProperty UserPrincipalName
-
 $forwardingReport = @()
-
 foreach ($user in $userList) {
     try {
-        $mailboxSettings = Get-MgUserMailboxSetting -UserId $user -ErrorAction SilentlyContinue
-
-        if ($mailboxSettings.ForwardingSmtpAddress) {
-            $forwardingReport += [PSCustomObject]@{
-                UserPrincipalName          = $user
-                ForwardingSMTPAddress      = $mailboxSettings.ForwardingSmtpAddress
-                KeepCopyInMailbox          = $mailboxSettings.KeepForwardedMessages
-                ForwardingEnabled          = $true
+        $mailbox = Get-Mailbox -Identity $user -ErrorAction SilentlyContinue
+        if ($mailbox) {
+            $forwardingSMTP = $mailbox.ForwardingSMTPAddress
+            $forwardingAddress = $mailbox.ForwardingAddress
+            $deliverToMailboxAndForward = $mailbox.DeliverToMailboxAndForward
+            if ($forwardingSMTP -or $forwardingAddress) {
+                $forwardingReport += [PSCustomObject]@{
+                    UserPrincipalName          = $user
+                    DisplayName                = $mailbox.DisplayName
+                    PrimarySMTPAddress         = $mailbox.PrimarySmtpAddress
+                    ForwardingSMTPAddress      = $forwardingSMTP
+                    ForwardingAddress          = if ($forwardingAddress) { (Get-Recipient -Identity $forwardingAddress).PrimarySmtpAddress } else { $null }
+                    DeliverToMailboxAndForward = $deliverToMailboxAndForward
+                }
+            } else {
+                $forwardingReport += [PSCustomObject]@{
+                    UserPrincipalName          = $user
+                    DisplayName                = $mailbox.DisplayName
+                    PrimarySMTPAddress         = $mailbox.PrimarySmtpAddress
+                    ForwardingSMTPAddress      = "No forwarding"
+                    ForwardingAddress          = "No forwarding"
+                    DeliverToMailboxAndForward = $deliverToMailboxAndForward
+                }
             }
-            Write-Host "Forwarding enabled for user: $user" -ForegroundColor Green
         } else {
-            $forwardingReport += [PSCustomObject]@{
-                UserPrincipalName          = $user
-                ForwardingSMTPAddress      = "No forwarding"
-                KeepCopyInMailbox          = $null
-                ForwardingEnabled          = $false
-            }
+            Write-Host "Mailbox not found for user: $user" -ForegroundColor Red
         }
+
     } catch {
-        Write-Host "Error retrieving forwarding settings for user: $user - $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "Error retrieving forwarding settings for $user : $($_.Exception.Message)" -ForegroundColor Red
     }
 }
 
-if ($forwardingReport.Count -gt 0) {
-    $forwardingReport | Export-Csv -Path $outputPath -NoTypeInformation -Force
-    Write-Host "Forwarding report generated at: $outputPath" -ForegroundColor Green
-} else {
-    Write-Host "No forwarding settings found for any users." -ForegroundColor Yellow
-}
+$forwardingReport | Export-Csv -Path $outputPath -NoTypeInformation -Force
+
+Write-Host "Forwarding report generated at: $outputPath" -ForegroundColor Green
 
 }
 
@@ -1921,7 +1924,7 @@ $services = @{
     }
     "Microsoft Graph" = @{
         ModuleName = "Microsoft.Graph"
-        ConnectCmd = { Connect-MgGraph -ShowBanner:$false  } #-Scopes "User.Read.All" 
+        ConnectCmd = {Connect-MgGraph -ShowBanner:$false  } #-Scopes "User.Read.All" 
     }
 }
 
@@ -2083,9 +2086,9 @@ $controlsPanel.BackColor = [System.Drawing.Color]::FromArgb(80, [System.Drawing.
 $backgroundPanel1.Controls.Add($controlsPanel)
 
 $labelIHS = New-Object System.Windows.Forms.Label
-$labelIHS.Text = "IHS UPL Script : AD Menu"
+$labelIHS.Text = "IndiaCore UPL Script : AD Menu"
 $labelIHS.AutoSize = $True
-$labelIHS.Size = New-Object System.Drawing.Size(250, 30) 
+$labelIHS.Size = New-Object System.Drawing.Size(248, 30) 
 $labelIHS.Location = New-Object System.Drawing.Point(6, 10)
 $labelIHS.Font = New-Object System.Drawing.Font("Cambria",14,[System.Drawing.FontStyle]::Bold)
 $labelIHS.ForeColor = "Black"
@@ -2118,7 +2121,7 @@ $helpPanel.Controls.Add($helpLabel)
 
      $IHDNDLBT = New-Object System.Windows.Forms.Button
     $IHDNDLBT.Text = "Module Check"
-    $IHDNDLBT.Location = New-Object System.Drawing.Point(280, 10)
+    $IHDNDLBT.Location = New-Object System.Drawing.Point(282, 10)
     $IHDNDLBT.AutoSize = $True
     $IHDNDLBT.ForeColor = "White"
     $IHDNDLBT.BackColor = "Gray"
@@ -2328,7 +2331,7 @@ $IHSGRPTSK.Add_MouseLeave({
 })
 
 $M365IHS = New-Object System.Windows.Forms.Label
-$M365IHS.Text = "IHS UPL Script : M365 Menu"
+$M365IHS.Text = "IndiaCore UPL Script : M365 Menu"
 $M365IHS.AutoSize = $True
 $M365IHS.Size = New-Object System.Drawing.Size(250, 30) # Set the desired width and height
 $M365IHS.Location = New-Object System.Drawing.Point(6, 200)
